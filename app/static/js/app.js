@@ -156,37 +156,44 @@ function renderBreadcrumbs() {
   }
 }
 
+const HEART_BADGE_SVG = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 21s-7.5-4.58-10-9.13C.49 8.36 2.42 5 5.5 5c1.74 0 3.41.81 4.5 2.09C11.09 5.81 12.76 5 14.5 5 17.58 5 19.51 8.36 18 11.87 19.5 16.42 12 21 12 21z"/></svg>`;
+
+// Build a path → fast-lookup map so delegated click handlers can find the
+// corresponding file in O(1) on huge folders.
+let pathIndex = new Map();
+
 function renderGrid() {
-  el.grid.innerHTML = "";
-  const items = [...state.folders, ...state.files];
-  el.empty.classList.toggle("hidden", items.length > 0);
+  const items = state.folders.length + state.files.length;
+  el.empty.classList.toggle("hidden", items > 0);
 
-  for (const folder of state.folders) el.grid.appendChild(folderTile(folder));
-  for (const file of state.files) el.grid.appendChild(fileTile(file));
+  pathIndex = new Map();
+  state.folders.forEach((f, i) => pathIndex.set(f.path, { kind: "folder", data: f, i }));
+  state.files.forEach((f, i) => pathIndex.set(f.path, { kind: "file", data: f, i }));
 
-  lazyLoadThumbnails();
+  // Build off-tree in a fragment so we only trigger one reflow.
+  const fragment = document.createDocumentFragment();
+  for (const folder of state.folders) fragment.appendChild(folderTile(folder));
+  for (const file of state.files) fragment.appendChild(fileTile(file));
+  el.grid.replaceChildren(fragment);
 }
 
 function folderTile(folder) {
   const node = document.createElement("div");
   node.className = "item";
+  node.dataset.path = folder.path;
+  node.dataset.kind = "folder";
   node.innerHTML = `
     <div class="item-thumb">${FOLDER_SVG}</div>
     <div class="item-name">${escapeHtml(folder.name)}</div>
   `;
-  node.addEventListener("dblclick", () => navigate(folder.path));
-  let lastTap = 0;
-  node.addEventListener("click", () => {
-    const now = Date.now();
-    if (now - lastTap < 300) navigate(folder.path);
-    lastTap = now;
-  });
   return node;
 }
 
 function fileTile(file) {
   const node = document.createElement("div");
   node.className = "item";
+  node.dataset.path = file.path;
+  node.dataset.kind = "file";
   const liked = state.likedSet.has(file.path);
 
   const thumb = document.createElement("div");
@@ -195,7 +202,8 @@ function fileTile(file) {
     const img = document.createElement("img");
     img.alt = file.name;
     img.loading = "lazy";
-    img.dataset.src = `/api/preview?path=${encodeURIComponent(file.path)}&size=thumbnail`;
+    img.decoding = "async";
+    img.src = `/api/preview?path=${encodeURIComponent(file.path)}&size=thumbnail`;
     thumb.appendChild(img);
   } else {
     const ph = document.createElement("div");
@@ -211,43 +219,55 @@ function fileTile(file) {
   node.appendChild(thumb);
   node.appendChild(name);
 
-  if (liked) {
-    const badge = document.createElement("div");
-    badge.className = "heart-badge";
-    badge.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 21s-7.5-4.58-10-9.13C.49 8.36 2.42 5 5.5 5c1.74 0 3.41.81 4.5 2.09C11.09 5.81 12.76 5 14.5 5 17.58 5 19.51 8.36 18 11.87 19.5 16.42 12 21 12 21z"/></svg>`;
-    node.appendChild(badge);
-  }
-
-  if (file.previewable) {
-    node.addEventListener("click", () => {
-      const idx = state.previewable.findIndex((f) => f.path === file.path);
-      if (idx >= 0) openLightbox(idx);
-    });
-  }
+  if (liked) node.appendChild(heartBadge());
   return node;
 }
 
-function lazyLoadThumbnails() {
-  const images = el.grid.querySelectorAll("img[data-src]");
-  if (!("IntersectionObserver" in window)) {
-    images.forEach((img) => {
-      img.src = img.dataset.src;
-      img.removeAttribute("data-src");
-    });
+function heartBadge() {
+  const badge = document.createElement("div");
+  badge.className = "heart-badge";
+  badge.innerHTML = HEART_BADGE_SVG;
+  return badge;
+}
+
+function updateTileLiked(path, liked) {
+  const tile = el.grid.querySelector(`[data-path="${CSS.escape(path)}"]`);
+  if (!tile) return;
+  const existing = tile.querySelector(".heart-badge");
+  if (liked && !existing) tile.appendChild(heartBadge());
+  else if (!liked && existing) existing.remove();
+}
+
+// One delegated click listener for the whole grid.
+let lastTap = { path: null, time: 0 };
+el.grid.addEventListener("click", (e) => {
+  const tile = e.target.closest(".item");
+  if (!tile) return;
+  const entry = pathIndex.get(tile.dataset.path);
+  if (!entry) return;
+
+  if (entry.kind === "folder") {
+    // Single-tap-to-enter on touch; desktop uses dblclick via the below.
+    const now = Date.now();
+    if (lastTap.path === entry.data.path && now - lastTap.time < 300) {
+      navigate(entry.data.path);
+    }
+    lastTap = { path: entry.data.path, time: now };
     return;
   }
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        const img = entry.target;
-        img.src = img.dataset.src;
-        img.removeAttribute("data-src");
-        observer.unobserve(img);
-      }
-    });
-  }, { rootMargin: "200px" });
-  images.forEach((img) => observer.observe(img));
-}
+
+  if (entry.data.previewable) {
+    const idx = state.previewable.findIndex((f) => f.path === entry.data.path);
+    if (idx >= 0) openLightbox(idx);
+  }
+});
+
+el.grid.addEventListener("dblclick", (e) => {
+  const tile = e.target.closest(".item[data-kind='folder']");
+  if (!tile) return;
+  const entry = pathIndex.get(tile.dataset.path);
+  if (entry) navigate(entry.data.path);
+});
 
 // ───── Lightbox ─────
 function openLightbox(index) {
@@ -262,7 +282,6 @@ function closeLightbox() {
   document.body.style.overflow = "";
   el.lbImage.src = "";
   state.lightboxIndex = -1;
-  renderGrid();
 }
 
 function showLightboxImage() {
@@ -309,6 +328,7 @@ async function toggleCurrentLike() {
     el.lbLike.classList.remove("pop");
     void el.lbLike.offsetWidth;
     el.lbLike.classList.add("pop");
+    updateTileLiked(file.path, liked);
   } catch (err) {
     if (err.message !== "unauthorized") alert(err.message);
   }

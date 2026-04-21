@@ -23,7 +23,7 @@ services:
       # THUMBNAIL_SIZE: 400
       # FULL_PREVIEW_SIZE: 2500
       # SESSION_MAX_AGE: 2592000  # 30 days
-      # CACHE_MAX_MB: 2048        # LRU eviction kicks in above this; 0 = disable
+      # CACHE_CLEAR_INTERVAL: 3600  # wipe the cache every N seconds; 0 = never
     volumes:
       # Mount any folders you want to browse. The folder name on the right
       # (under /data) is what you'll see in the app.

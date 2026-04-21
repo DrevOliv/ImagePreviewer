@@ -42,10 +42,9 @@ class Settings:
         self.thumbnail_size: int = int(os.environ.get("THUMBNAIL_SIZE", 400))
         self.full_size: int = int(os.environ.get("FULL_PREVIEW_SIZE", 2500))
 
-        # Upper bound on the on-disk preview cache. Set to 0 to disable eviction.
-        self.cache_max_mb: int = int(os.environ.get("CACHE_MAX_MB", 2048))
-        # How often the background thread checks and trims the cache (seconds).
-        self.cache_sweep_interval: int = int(os.environ.get("CACHE_SWEEP_INTERVAL", 300))
+        # How often (seconds) the background thread wipes the preview cache.
+        # Set to 0 to disable clearing entirely (cache will grow forever).
+        self.cache_clear_interval: int = int(os.environ.get("CACHE_CLEAR_INTERVAL", 3600))
 
         for directory in (self.cache_root, self.state_root):
             directory.mkdir(parents=True, exist_ok=True)

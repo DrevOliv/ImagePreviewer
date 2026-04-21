@@ -1,14 +1,11 @@
 import hashlib
+import shutil
 import threading
 import time
 from pathlib import Path
 
 from ..config import settings
 
-
-# After an eviction pass, shrink to this fraction of the cap so we don't
-# immediately cross the threshold again on the very next write.
-_LOW_WATER_RATIO = 0.9
 
 _sweeper_started = False
 _sweeper_lock = threading.Lock()
@@ -23,14 +20,9 @@ def cache_path(source: Path, max_size: int, mime: str) -> Path:
 
 
 def read_or_generate(source: Path, max_size: int, mime: str, generator) -> bytes:
-    """Return cached preview bytes, generating and storing if missing.
-
-    On cache hit we update the file's mtime so the eviction pass treats
-    mtime as "last access time" — giving us a simple LRU policy.
-    """
+    """Return cached preview bytes, generating and storing if missing."""
     path = cache_path(source, max_size, mime)
     if path.exists():
-        _touch(path)
         return path.read_bytes()
 
     data = generator()
@@ -41,18 +33,11 @@ def read_or_generate(source: Path, max_size: int, mime: str, generator) -> bytes
     return data
 
 
-def _touch(path: Path) -> None:
-    try:
-        path.touch(exist_ok=True)
-    except OSError:
-        pass
-
-
 def start_sweeper() -> None:
-    """Start the background thread that periodically trims the cache.
+    """Start a background thread that wipes the cache on an interval.
 
-    Safe to call multiple times; only the first call actually starts the
-    thread. The thread is daemonic so it exits with the process.
+    Safe to call multiple times; only the first call starts the thread.
+    If CACHE_CLEAR_INTERVAL is 0, no thread is started.
     """
     global _sweeper_started
     with _sweeper_lock:
@@ -60,46 +45,29 @@ def start_sweeper() -> None:
             return
         _sweeper_started = True
 
+    if settings.cache_clear_interval <= 0:
+        return
+
     thread = threading.Thread(target=_sweep_loop, name="cache-sweeper", daemon=True)
     thread.start()
 
 
 def _sweep_loop() -> None:
-    # Run once at startup so an over-cap cache doesn't linger.
-    _evict_if_needed()
-    interval = max(10, settings.cache_sweep_interval)
+    interval = settings.cache_clear_interval
     while True:
         time.sleep(interval)
-        _evict_if_needed()
+        _clear_cache()
 
 
-def _evict_if_needed() -> None:
-    cap = settings.cache_max_mb * 1024 * 1024
-    if cap <= 0:
+def _clear_cache() -> None:
+    root = settings.cache_root
+    if not root.exists():
         return
-
-    entries: list[tuple[float, int, Path]] = []
-    total = 0
-    for entry in settings.cache_root.rglob("*"):
-        if not entry.is_file():
-            continue
+    for entry in root.iterdir():
         try:
-            stat = entry.stat()
-        except OSError:
-            continue
-        entries.append((stat.st_mtime, stat.st_size, entry))
-        total += stat.st_size
-
-    if total <= cap:
-        return
-
-    target = int(cap * _LOW_WATER_RATIO)
-    entries.sort(key=lambda e: e[0])  # oldest first
-    for _, size, path in entries:
-        if total <= target:
-            break
-        try:
-            path.unlink()
-            total -= size
+            if entry.is_dir():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
         except OSError:
             pass

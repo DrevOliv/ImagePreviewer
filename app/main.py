@@ -7,6 +7,8 @@ if __name__ == "__main__":
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import logging
+import tempfile
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -25,12 +27,29 @@ from app.preview.router import router as preview_router
 
 
 STATIC_DIR = Path(__file__).parent / "static"
+# uvicorn.error is always configured and visible in the terminal.
+log = logging.getLogger("uvicorn.error")
 
 install_default_handlers()
 
 
+def _check_writable(path: Path, label: str) -> None:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=path, prefix=".write-check-", delete=True):
+            pass
+    except OSError as exc:
+        log.error(
+            "Cannot write to %s directory at %s (%s). "
+            "Fix permissions or change the env var, or the app will fail on first use.",
+            label, path, exc,
+        )
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    _check_writable(settings.cache_root, "CACHE_ROOT")
+    _check_writable(settings.state_root, "STATE_ROOT")
     start_sweeper()
     yield
 

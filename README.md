@@ -78,8 +78,7 @@ Variables that real env vars set always win over `.env` file values.
 | `THUMBNAIL_SIZE`    | no       | `400`                | Max edge (px) for grid thumbnails.                       |
 | `FULL_PREVIEW_SIZE` | no       | `2500`               | Max edge (px) for the lightbox image.                    |
 | `SESSION_MAX_AGE`   | no       | `2592000` (30 days)  | Cookie lifetime in seconds.                              |
-| `CACHE_MAX_MB`      | no       | `2048`               | Cap on the preview cache. Oldest-used files are evicted when exceeded. `0` disables. |
-| `CACHE_SWEEP_INTERVAL` | no    | `300`                | How often (seconds) the background sweeper checks the cache size. |
+| `CACHE_CLEAR_INTERVAL` | no    | `3600`               | How often (seconds) the preview cache is wiped. `0` disables clearing. |
 
 Generate a secret key with:
 
