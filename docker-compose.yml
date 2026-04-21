@@ -1,0 +1,40 @@
+services:
+  imageviewer:
+    build: .
+    container_name: imageviewer
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    # Alternatively, put everything in a .env file next to this compose file
+    # and uncomment the line below. The app also auto-loads /app/.env inside
+    # the container if you bind-mount one.
+    # env_file: .env
+    environment:
+      # Required: login password (change this!)
+      APP_PASSWORD: changeme
+      # Required: random string used to sign session cookies.
+      # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+      SECRET_KEY: please-generate-a-long-random-string
+      # Optional path overrides — match the mount points below if you change them.
+      # DATA_ROOT: /data
+      # CACHE_ROOT: /cache
+      # STATE_ROOT: /state
+      # Optional tuning:
+      # THUMBNAIL_SIZE: 400
+      # FULL_PREVIEW_SIZE: 2500
+      # SESSION_MAX_AGE: 2592000  # 30 days
+      # CACHE_MAX_MB: 2048        # LRU eviction kicks in above this; 0 = disable
+    volumes:
+      # Mount any folders you want to browse. The folder name on the right
+      # (under /data) is what you'll see in the app.
+      - ./images:/data/images
+      # - /mnt/photos:/data/photos
+      # - ~/Pictures:/data/pictures
+
+      # Persistent caches (fast re-opens, survives restarts).
+      - imageviewer-cache:/cache
+      - imageviewer-state:/state
+
+volumes:
+  imageviewer-cache:
+  imageviewer-state:

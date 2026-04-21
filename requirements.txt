@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+itsdangerous
+python-multipart
+python-dotenv
+Pillow
+rawpy
+numpy

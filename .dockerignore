@@ -1,0 +1,13 @@
+.git
+.idea
+.vscode
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+.env
+.DS_Store
+README.md
+docker-compose.yml
+main.py
