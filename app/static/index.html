@@ -3,32 +3,48 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ImageViewer</title>
+  <title>Filvisare</title>
+  <link rel="icon" type="image/png" href="/static/icon.png" />
+  <link rel="apple-touch-icon" href="/static/icon.png" />
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
-  <header class="toolbar">
-    <div class="toolbar-left">
-      <button id="back-btn" class="icon-btn" title="Back" aria-label="Back">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-      </button>
-      <nav id="breadcrumbs" class="breadcrumbs" aria-label="Path"></nav>
-    </div>
-    <div class="toolbar-right">
-      <button id="likes-btn" class="pill-btn" title="Show liked images">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 21s-7.5-4.58-10-9.13C.49 8.36 2.42 5 5.5 5c1.74 0 3.41.81 4.5 2.09C11.09 5.81 12.76 5 14.5 5 17.58 5 19.51 8.36 18 11.87 19.5 16.42 12 21 12 21z"/></svg>
-        Liked
-      </button>
-      <button id="logout-btn" class="pill-btn">Logout</button>
-    </div>
-  </header>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Folder tree">
+      <div class="sidebar-brand">
+        <img src="/static/icon.png" alt="" class="brand-logo" />
+        <span class="brand-name">Filvisare</span>
+      </div>
+      <div class="sidebar-header">Folders</div>
+      <ul id="tree" class="tree" role="tree"></ul>
+    </aside>
 
-  <main id="grid" class="grid" aria-live="polite"></main>
+    <div class="content">
+      <header class="toolbar">
+        <div class="toolbar-left">
+          <h1 id="location" class="location">Home</h1>
+        </div>
+        <div class="toolbar-right">
+          <button id="likes-btn" class="pill-btn" title="Show liked images">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 21s-7.5-4.58-10-9.13C.49 8.36 2.42 5 5.5 5c1.74 0 3.41.81 4.5 2.09C11.09 5.81 12.76 5 14.5 5 17.58 5 19.51 8.36 18 11.87 19.5 16.42 12 21 12 21z"/></svg>
+            Liked
+          </button>
+          <button id="logout-btn" class="pill-btn">Logout</button>
+        </div>
+      </header>
 
-  <div id="empty" class="empty hidden">This folder is empty.</div>
-  <div id="loading" class="loading hidden">Loading…</div>
+      <main id="grid" class="grid" aria-live="polite"></main>
+
+      <div id="empty" class="empty hidden">This folder is empty.</div>
+      <div id="loading" class="loading hidden">Loading…</div>
+    </div>
+  </div>
 
   <div id="lightbox" class="lightbox hidden" role="dialog" aria-modal="true">
+    <button class="lightbox-back" id="lb-back" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      <span>Back</span>
+    </button>
     <button class="lightbox-close" id="lb-close" aria-label="Close">
       <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>

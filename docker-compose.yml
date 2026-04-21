@@ -1,7 +1,7 @@
 services:
-  imageviewer:
-    build: .
-    container_name: imageviewer
+  filvisare:
+    image: drevoliv/filvisare:latest
+    container_name: filvisare
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -31,10 +31,13 @@ services:
       # - /mnt/photos:/data/photos
       # - ~/Pictures:/data/pictures
 
-      # Persistent caches (fast re-opens, survives restarts).
-      - imageviewer-cache:/cache
-      - imageviewer-state:/state
+      # Cache + app state live in Docker-managed named volumes (defined below).
+      # They're stored under Docker's data directory — usually on the same disk
+      # Docker itself is installed on. So if Docker is on an SSD and your photo
+      # folders are bind-mounted from a slower drive, the cache stays on the SSD.
+      - filvisare-cache:/cache
+      - filvisare-state:/state
 
 volumes:
-  imageviewer-cache:
-  imageviewer-state:
+  filvisare-cache:
+  filvisare-state:

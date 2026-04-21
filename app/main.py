@@ -54,7 +54,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="ImageViewer", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="Filvisare", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 app.include_router(auth_router)
 app.include_router(browser_router)

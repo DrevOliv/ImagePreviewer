@@ -1,4 +1,15 @@
-# ImageViewer
+<p align="center">
+  <img src="Icons/filvisare.png" alt="Filvisare" width="140" />
+</p>
+
+<h1 align="center">Filvisare</h1>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+" />
+  <img src="https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/platform-linux%20%7C%20macOS-lightgrey" alt="Platform" />
+</p>
 
 A lean, Finder-style file browser built for **previewing images** — including
 camera RAW files like `.NEF`, `.DNG`, `.CR2`, `.ARW` that tools like Filebrowser
@@ -6,6 +17,10 @@ can't display.
 
 Point it at one or more folders, open your browser, and flip through your
 photos with arrow keys. Heart the ones you want to come back to later.
+
+<p align="center">
+  <img src="screenshots/img.png" alt="Filvisare screenshot" width="820" />
+</p>
 
 ---
 
@@ -33,7 +48,7 @@ photos with arrow keys. Heart the ones you want to come back to later.
 
 ```bash
 git clone <this repo>
-cd ImageViewer
+cd Filvisare
 
 # edit docker-compose.yml to set APP_PASSWORD and SECRET_KEY,
 # and to mount the folder(s) you want to browse
@@ -197,11 +212,11 @@ docker login
 ### Same-arch build (fastest if you deploy on the same CPU as you build)
 
 ```bash
-docker build -t YOUR_DOCKERHUB_USER/imageviewer:v0.1.0 \
-             -t YOUR_DOCKERHUB_USER/imageviewer:latest .
+docker build -t YOUR_DOCKERHUB_USER/filvisare:v0.1.0 \
+             -t YOUR_DOCKERHUB_USER/filvisare:latest .
 
-docker push YOUR_DOCKERHUB_USER/imageviewer:v0.1.0
-docker push YOUR_DOCKERHUB_USER/imageviewer:latest
+docker push YOUR_DOCKERHUB_USER/filvisare:v0.1.0
+docker push YOUR_DOCKERHUB_USER/filvisare:latest
 ```
 
 ### Multi-arch build (recommended)
@@ -217,8 +232,8 @@ docker buildx inspect --bootstrap
 # Build and push in one step
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t YOUR_DOCKERHUB_USER/imageviewer:v0.1.0 \
-  -t YOUR_DOCKERHUB_USER/imageviewer:latest \
+  -t YOUR_DOCKERHUB_USER/filvisare:v0.1.0 \
+  -t YOUR_DOCKERHUB_USER/filvisare:latest \
   --push .
 ```
 
@@ -229,8 +244,8 @@ image instead of building:
 
 ```yaml
 services:
-  imageviewer:
-    image: YOUR_DOCKERHUB_USER/imageviewer:latest
+  filvisare:
+    image: YOUR_DOCKERHUB_USER/filvisare:latest
     # (drop the `build: .` line)
     ...
 ```

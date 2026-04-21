@@ -3,6 +3,10 @@ const FOLDER_SVG = `
     <path d="M6 14c0-2.2 1.8-4 4-4h14l6 6h24c2.2 0 4 1.8 4 4v30c0 2.2-1.8 4-4 4H10c-2.2 0-4-1.8-4-4V14z"/>
   </svg>`;
 
+const TREE_FOLDER_SVG = `<svg viewBox="0 0 64 64" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6 14c0-2.2 1.8-4 4-4h14l6 6h24c2.2 0 4 1.8 4 4v30c0 2.2-1.8 4-4 4H10c-2.2 0-4-1.8-4-4V14z"/></svg>`;
+
+const TREE_ARROW_SVG = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5l8 7-8 7z"/></svg>`;
+
 const state = {
   path: "",
   folders: [],
@@ -17,8 +21,8 @@ const el = {
   grid: document.getElementById("grid"),
   empty: document.getElementById("empty"),
   loading: document.getElementById("loading"),
-  back: document.getElementById("back-btn"),
-  crumbs: document.getElementById("breadcrumbs"),
+  location: document.getElementById("location"),
+  tree: document.getElementById("tree"),
   logout: document.getElementById("logout-btn"),
   likesBtn: document.getElementById("likes-btn"),
   lightbox: document.getElementById("lightbox"),
@@ -26,6 +30,7 @@ const el = {
   lbPrev: document.getElementById("lb-prev"),
   lbNext: document.getElementById("lb-next"),
   lbClose: document.getElementById("lb-close"),
+  lbBack: document.getElementById("lb-back"),
   lbLike: document.getElementById("lb-like"),
   lbFilename: document.getElementById("lb-filename"),
   lbCounter: document.getElementById("lb-counter"),
@@ -76,6 +81,7 @@ async function navigate(path) {
     state.previewable = data.files.filter((f) => f.previewable);
     window.history.replaceState({}, "", `#/${state.path}`);
     render();
+    revealAndSelect(state.path);
   } catch (err) {
     if (err.message !== "unauthorized") alert(err.message);
   } finally {
@@ -100,6 +106,7 @@ async function showLikedView() {
     }));
     state.previewable = state.files;
     renderLiked();
+    clearTreeSelection();
   } catch (err) {
     if (err.message !== "unauthorized") alert(err.message);
   } finally {
@@ -109,51 +116,13 @@ async function showLikedView() {
 
 // ───── Render ─────
 function render() {
-  renderBreadcrumbs();
-  el.back.disabled = !state.path;
+  el.location.textContent = state.path ? state.path : "Home";
   renderGrid();
 }
 
 function renderLiked() {
-  el.crumbs.innerHTML = `<span class="breadcrumb current">Liked Images</span>`;
-  el.back.disabled = false;
+  el.location.textContent = "Liked Images";
   renderGrid();
-}
-
-function renderBreadcrumbs() {
-  el.crumbs.innerHTML = "";
-  const root = document.createElement("a");
-  root.className = "breadcrumb" + (state.path ? "" : " current");
-  root.textContent = "Home";
-  root.href = "#/";
-  root.addEventListener("click", (e) => {
-    e.preventDefault();
-    navigate("");
-  });
-  el.crumbs.appendChild(root);
-
-  if (state.path) {
-    const parts = state.path.split("/");
-    let acc = "";
-    parts.forEach((part, i) => {
-      const sep = document.createElement("span");
-      sep.className = "breadcrumb-sep";
-      sep.textContent = "/";
-      el.crumbs.appendChild(sep);
-
-      acc = acc ? `${acc}/${part}` : part;
-      const node = document.createElement("a");
-      node.className = "breadcrumb" + (i === parts.length - 1 ? " current" : "");
-      node.textContent = part;
-      node.href = `#/${acc}`;
-      const target = acc;
-      node.addEventListener("click", (e) => {
-        e.preventDefault();
-        navigate(target);
-      });
-      el.crumbs.appendChild(node);
-    });
-  }
 }
 
 const HEART_BADGE_SVG = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 21s-7.5-4.58-10-9.13C.49 8.36 2.42 5 5.5 5c1.74 0 3.41.81 4.5 2.09C11.09 5.81 12.76 5 14.5 5 17.58 5 19.51 8.36 18 11.87 19.5 16.42 12 21 12 21z"/></svg>`;
@@ -269,6 +238,143 @@ el.grid.addEventListener("dblclick", (e) => {
   if (entry) navigate(entry.data.path);
 });
 
+// ───── Sidebar tree ─────
+function buildTreeNode(folder, depth) {
+  const li = document.createElement("li");
+  li.className = "tree-node";
+  li.dataset.path = folder.path;
+  li.dataset.depth = String(depth);
+  li.dataset.loaded = "false";
+  // Home (empty path) always shows the arrow — we can't know upfront whether
+  // /data has subfolders without an extra request.
+  if (folder.path !== "" && folder.has_subfolders === false) {
+    li.classList.add("is-leaf");
+  }
+
+  const row = document.createElement("div");
+  row.className = "tree-row";
+  row.style.setProperty("--depth", String(depth));
+
+  const arrow = document.createElement("button");
+  arrow.className = "tree-arrow";
+  arrow.type = "button";
+  arrow.tabIndex = -1;
+  arrow.setAttribute("aria-label", "Expand");
+  arrow.innerHTML = TREE_ARROW_SVG;
+
+  const icon = document.createElement("span");
+  icon.className = "tree-icon";
+  icon.innerHTML = TREE_FOLDER_SVG;
+
+  const label = document.createElement("span");
+  label.className = "tree-label";
+  label.textContent = folder.name;
+
+  row.append(icon, label, arrow);
+
+  const children = document.createElement("ul");
+  children.className = "tree-children";
+
+  li.append(row, children);
+  return li;
+}
+
+async function loadChildren(li) {
+  if (li.dataset.loaded === "true") return;
+  const path = li.dataset.path;
+  const depth = parseInt(li.dataset.depth, 10) + 1;
+  const children = li.querySelector(":scope > .tree-children");
+  try {
+    const data = await api(`/api/browse?path=${encodeURIComponent(path)}`);
+    children.replaceChildren();
+    for (const folder of data.folders) {
+      children.appendChild(buildTreeNode(folder, depth));
+    }
+    if (data.folders.length === 0) li.classList.add("is-leaf");
+    li.dataset.loaded = "true";
+  } catch (err) {
+    if (err.message !== "unauthorized") console.warn("tree load failed", err);
+  }
+}
+
+async function toggleNode(li, expand) {
+  const shouldExpand =
+    expand === undefined ? !li.classList.contains("expanded") : expand;
+  if (shouldExpand) {
+    await loadChildren(li);
+    li.classList.add("expanded");
+  } else {
+    li.classList.remove("expanded");
+  }
+}
+
+function clearTreeSelection() {
+  el.tree.querySelectorAll(".tree-row.selected").forEach((r) =>
+    r.classList.remove("selected"),
+  );
+}
+
+async function revealAndSelect(targetPath) {
+  clearTreeSelection();
+  let currentLi = Array.from(el.tree.children).find(
+    (li) => li.dataset.path === "",
+  );
+  if (!currentLi) return;
+  await toggleNode(currentLi, true);
+
+  if (targetPath) {
+    const parts = targetPath.split("/");
+    let acc = "";
+    for (const part of parts) {
+      acc = acc ? `${acc}/${part}` : part;
+      const childUl = currentLi.querySelector(":scope > .tree-children");
+      const nextLi = Array.from(childUl.children).find(
+        (c) => c.dataset.path === acc,
+      );
+      if (!nextLi) break;
+      await toggleNode(nextLi, true);
+      currentLi = nextLi;
+    }
+  }
+
+  const row = currentLi.querySelector(":scope > .tree-row");
+  row.classList.add("selected");
+  row.scrollIntoView({ block: "nearest" });
+}
+
+async function initTree() {
+  el.tree.replaceChildren();
+  const home = buildTreeNode({ name: "Home", path: "" }, 0);
+  el.tree.appendChild(home);
+  await toggleNode(home, true);
+}
+
+el.tree.addEventListener("click", async (e) => {
+  const arrow = e.target.closest(".tree-arrow");
+  const row = e.target.closest(".tree-row");
+  if (!row) return;
+  const li = row.closest(".tree-node");
+  if (!li) return;
+
+  if (arrow) {
+    e.stopPropagation();
+    await toggleNode(li);
+    return;
+  }
+
+  clearTreeSelection();
+  row.classList.add("selected");
+});
+
+el.tree.addEventListener("dblclick", async (e) => {
+  if (e.target.closest(".tree-arrow")) return;
+  const row = e.target.closest(".tree-row");
+  if (!row) return;
+  const li = row.closest(".tree-node");
+  if (!li) return;
+  await navigate(li.dataset.path);
+});
+
 // ───── Lightbox ─────
 function openLightbox(index) {
   state.lightboxIndex = index;
@@ -346,15 +452,6 @@ function escapeHtml(str) {
 }
 
 // ───── Events ─────
-el.back.addEventListener("click", () => {
-  if (state.likedView) return navigate(state.path || "");
-  if (!state.path) return;
-  const parent = state.path.includes("/")
-    ? state.path.substring(0, state.path.lastIndexOf("/"))
-    : "";
-  navigate(parent);
-});
-
 el.logout.addEventListener("click", async () => {
   await fetch("/api/auth/logout", { method: "POST" });
   window.location.href = "/login";
@@ -366,6 +463,7 @@ el.likesBtn.addEventListener("click", () => {
 });
 
 el.lbClose.addEventListener("click", closeLightbox);
+el.lbBack.addEventListener("click", closeLightbox);
 el.lbPrev.addEventListener("click", lightboxPrev);
 el.lbNext.addEventListener("click", lightboxNext);
 el.lbLike.addEventListener("click", toggleCurrentLike);
@@ -380,13 +478,14 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeLightbox();
   else if (e.key === "ArrowLeft") lightboxPrev();
   else if (e.key === "ArrowRight") lightboxNext();
-  else if (e.key.toLowerCase() === "l") toggleCurrentLike();
+  else if (e.key.toLowerCase() === "h") toggleCurrentLike();
 });
 
 // ───── Init ─────
 (async function init() {
   try {
     await loadLikes();
+    await initTree();
     const initial = decodeURIComponent((window.location.hash || "").replace(/^#\/?/, ""));
     await navigate(initial);
   } catch (err) {

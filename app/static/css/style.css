@@ -62,18 +62,12 @@ img {
   text-align: center;
 }
 
-.login-logo {
-  width: 56px;
-  height: 56px;
+.login-logo-img {
+  width: 64px;
+  height: 64px;
   margin: 0 auto 16px;
-  background: linear-gradient(135deg, #4f8cff, #8a5cf6);
+  display: block;
   border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: 0.5px;
 }
 
 .login-card h1 {
@@ -128,6 +122,143 @@ img {
   font-size: 13px;
 }
 
+/* ───── Layout ───── */
+.layout {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ───── Sidebar ───── */
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-elevated);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.2px;
+}
+
+.sidebar-header {
+  padding: 8px 16px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+}
+
+.tree,
+.tree-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree-node > .tree-children {
+  display: none;
+}
+
+.tree-node.expanded > .tree-children {
+  display: block;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px calc(8px + var(--depth, 0) * 14px);
+  cursor: pointer;
+  color: var(--text-dim);
+  user-select: none;
+  border-left: 2px solid transparent;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.tree-row:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.tree-row.selected {
+  background: rgba(79, 140, 255, 0.14);
+  color: var(--text);
+  border-left-color: var(--accent);
+}
+
+.tree-arrow {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: transform 0.15s, color 0.12s, background 0.12s;
+}
+
+.tree-arrow:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tree-node.expanded > .tree-row > .tree-arrow {
+  transform: rotate(90deg);
+}
+
+.tree-node.is-leaf > .tree-row > .tree-arrow {
+  visibility: hidden;
+}
+
+.tree-icon {
+  flex-shrink: 0;
+  display: flex;
+}
+
+.tree-icon svg {
+  color: #f0c860;
+}
+
+.tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
 /* ───── Toolbar ───── */
 .toolbar {
   position: sticky;
@@ -149,56 +280,15 @@ img {
   gap: 8px;
 }
 
-.icon-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-dim);
-  transition: background 0.15s, color 0.15s;
-}
-
-.icon-btn:hover {
-  background: var(--bg-hover);
+.location {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
   color: var(--text);
-}
-
-.icon-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.breadcrumbs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow-x: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 60vw;
-}
-
-.breadcrumb {
-  color: var(--text-dim);
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
-}
-
-.breadcrumb:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.breadcrumb.current {
-  color: var(--text);
-  font-weight: 500;
-}
-
-.breadcrumb-sep {
-  color: var(--text-dim);
-  opacity: 0.5;
 }
 
 .pill-btn {
@@ -367,6 +457,25 @@ img {
 .lightbox-close:hover {
   background: var(--bg-hover);
   color: var(--text);
+}
+
+.lightbox-back {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 999px;
+  background: rgba(40, 42, 46, 0.6);
+  color: var(--text);
+  font-size: 14px;
+  transition: background 0.15s;
+}
+
+.lightbox-back:hover {
+  background: rgba(60, 63, 69, 0.9);
 }
 
 .lightbox-nav {

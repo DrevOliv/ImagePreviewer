@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth.dependencies import require_auth
@@ -6,6 +8,22 @@ from ..preview.registry import is_previewable
 
 
 router = APIRouter(prefix="/api/browse", tags=["browser"], dependencies=[Depends(require_auth)])
+
+
+def _has_subfolders(path) -> bool:
+    try:
+        with os.scandir(path) as it:
+            for entry in it:
+                if entry.name.startswith("."):
+                    continue
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        return True
+                except OSError:
+                    continue
+    except OSError:
+        pass
+    return False
 
 
 def _entry(path, kind: str) -> dict:
@@ -26,6 +44,8 @@ def _entry(path, kind: str) -> dict:
         item["mtime"] = mtime
         item["previewable"] = is_previewable(path.suffix)
         item["extension"] = path.suffix.lstrip(".").lower()
+    else:
+        item["has_subfolders"] = _has_subfolders(path)
     return item
 
 
