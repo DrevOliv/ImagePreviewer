@@ -44,6 +44,8 @@ class Settings:
 
         # Upper bound on the on-disk preview cache. Set to 0 to disable eviction.
         self.cache_max_mb: int = int(os.environ.get("CACHE_MAX_MB", 2048))
+        # How often the background thread checks and trims the cache (seconds).
+        self.cache_sweep_interval: int = int(os.environ.get("CACHE_SWEEP_INTERVAL", 300))
 
         for directory in (self.cache_root, self.state_root):
             directory.mkdir(parents=True, exist_ok=True)

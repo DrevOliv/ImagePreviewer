@@ -1,14 +1,17 @@
 import hashlib
 import threading
+import time
 from pathlib import Path
 
 from ..config import settings
 
 
-_eviction_lock = threading.Lock()
 # After an eviction pass, shrink to this fraction of the cap so we don't
-# trigger a new eviction on every single write right after a sweep.
+# immediately cross the threshold again on the very next write.
 _LOW_WATER_RATIO = 0.9
+
+_sweeper_started = False
+_sweeper_lock = threading.Lock()
 
 
 def cache_path(source: Path, max_size: int, mime: str) -> Path:
@@ -35,7 +38,6 @@ def read_or_generate(source: Path, max_size: int, mime: str, generator) -> bytes
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_bytes(data)
     tmp.replace(path)
-    _schedule_eviction()
     return data
 
 
@@ -46,44 +48,58 @@ def _touch(path: Path) -> None:
         pass
 
 
-def _schedule_eviction() -> None:
-    """Run eviction in the background so the request doesn't wait on it."""
-    threading.Thread(target=_evict_if_needed, daemon=True).start()
+def start_sweeper() -> None:
+    """Start the background thread that periodically trims the cache.
+
+    Safe to call multiple times; only the first call actually starts the
+    thread. The thread is daemonic so it exits with the process.
+    """
+    global _sweeper_started
+    with _sweeper_lock:
+        if _sweeper_started:
+            return
+        _sweeper_started = True
+
+    thread = threading.Thread(target=_sweep_loop, name="cache-sweeper", daemon=True)
+    thread.start()
+
+
+def _sweep_loop() -> None:
+    # Run once at startup so an over-cap cache doesn't linger.
+    _evict_if_needed()
+    interval = max(10, settings.cache_sweep_interval)
+    while True:
+        time.sleep(interval)
+        _evict_if_needed()
 
 
 def _evict_if_needed() -> None:
-    # Only one eviction pass at a time; skip if another one is already running.
-    if not _eviction_lock.acquire(blocking=False):
+    cap = settings.cache_max_mb * 1024 * 1024
+    if cap <= 0:
         return
-    try:
-        cap = settings.cache_max_mb * 1024 * 1024
-        if cap <= 0:
-            return
 
-        entries: list[tuple[float, int, Path]] = []
-        total = 0
-        for entry in settings.cache_root.rglob("*"):
-            if not entry.is_file():
-                continue
-            try:
-                stat = entry.stat()
-            except OSError:
-                continue
-            entries.append((stat.st_mtime, stat.st_size, entry))
-            total += stat.st_size
+    entries: list[tuple[float, int, Path]] = []
+    total = 0
+    for entry in settings.cache_root.rglob("*"):
+        if not entry.is_file():
+            continue
+        try:
+            stat = entry.stat()
+        except OSError:
+            continue
+        entries.append((stat.st_mtime, stat.st_size, entry))
+        total += stat.st_size
 
-        if total <= cap:
-            return
+    if total <= cap:
+        return
 
-        target = int(cap * _LOW_WATER_RATIO)
-        entries.sort(key=lambda e: e[0])  # oldest first
-        for _, size, path in entries:
-            if total <= target:
-                break
-            try:
-                path.unlink()
-                total -= size
-            except OSError:
-                pass
-    finally:
-        _eviction_lock.release()
+    target = int(cap * _LOW_WATER_RATIO)
+    entries.sort(key=lambda e: e[0])  # oldest first
+    for _, size, path in entries:
+        if total <= target:
+            break
+        try:
+            path.unlink()
+            total -= size
+        except OSError:
+            pass

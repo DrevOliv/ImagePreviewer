@@ -7,6 +7,8 @@ if __name__ == "__main__":
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse
@@ -18,6 +20,7 @@ from app.browser.router import router as browser_router
 from app.config import settings
 from app.likes.router import router as likes_router
 from app.preview import install_default_handlers
+from app.preview.cache import start_sweeper
 from app.preview.router import router as preview_router
 
 
@@ -25,7 +28,14 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 install_default_handlers()
 
-app = FastAPI(title="ImageViewer", docs_url=None, redoc_url=None)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    start_sweeper()
+    yield
+
+
+app = FastAPI(title="ImageViewer", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 app.include_router(auth_router)
 app.include_router(browser_router)
