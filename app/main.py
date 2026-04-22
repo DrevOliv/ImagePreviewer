@@ -20,6 +20,7 @@ from app.auth.dependencies import verify_token
 from app.auth.router import router as auth_router
 from app.browser.router import router as browser_router
 from app.config import settings
+from app.download.router import router as download_router
 from app.likes.router import router as likes_router
 from app.preview import install_default_handlers
 from app.preview.cache import start_sweeper
@@ -62,6 +63,7 @@ app.include_router(browser_router)
 app.include_router(preview_router)
 app.include_router(video_router)
 app.include_router(likes_router)
+app.include_router(download_router)
 
 
 def _is_authed(request: Request) -> bool:
