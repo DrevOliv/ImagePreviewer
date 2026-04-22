@@ -10,4 +10,10 @@ venv
 .DS_Store
 README.md
 docker-compose.yml
-main.py
+data/
+cache/
+state/
+
+app/data/
+app/cache/
+app/state/

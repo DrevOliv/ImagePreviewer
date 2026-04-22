@@ -15,6 +15,7 @@ const state = {
   likedSet: new Set(),
   lightboxIndex: -1,
   likedView: false,
+  lightboxLoading: false,
 };
 
 const el = {
@@ -27,6 +28,7 @@ const el = {
   likesBtn: document.getElementById("likes-btn"),
   lightbox: document.getElementById("lightbox"),
   lbImage: document.getElementById("lb-image"),
+  lbSpinner: document.getElementById("lb-spinner"),
   lbPrev: document.getElementById("lb-prev"),
   lbNext: document.getElementById("lb-next"),
   lbClose: document.getElementById("lb-close"),
@@ -168,10 +170,18 @@ function fileTile(file) {
   const thumb = document.createElement("div");
   thumb.className = "item-thumb";
   if (file.previewable) {
+    thumb.classList.add("loading");
     const img = document.createElement("img");
     img.alt = file.name;
     img.loading = "lazy";
     img.decoding = "async";
+    img.addEventListener("load", () => {
+      img.classList.add("loaded");
+      thumb.classList.remove("loading");
+    });
+    img.addEventListener("error", () => {
+      thumb.classList.remove("loading");
+    });
     img.src = `/api/preview?path=${encodeURIComponent(file.path)}&size=thumbnail`;
     thumb.appendChild(img);
   } else {
@@ -387,22 +397,53 @@ function closeLightbox() {
   el.lightbox.classList.add("hidden");
   document.body.style.overflow = "";
   el.lbImage.src = "";
+  el.lbImage.classList.remove("loaded");
+  el.lbSpinner.classList.add("hidden");
+  state.lightboxLoading = false;
   state.lightboxIndex = -1;
+}
+
+function setLightboxLoading(loading) {
+  state.lightboxLoading = loading;
+  el.lbSpinner.classList.toggle("hidden", !loading);
+  updateLightboxNavDisabled();
+}
+
+function updateLightboxNavDisabled() {
+  el.lbPrev.disabled =
+    state.lightboxLoading || state.lightboxIndex === 0;
+  el.lbNext.disabled =
+    state.lightboxLoading ||
+    state.lightboxIndex === state.previewable.length - 1;
 }
 
 function showLightboxImage() {
   const file = state.previewable[state.lightboxIndex];
   if (!file) return;
+  el.lbImage.classList.remove("loaded");
+  setLightboxLoading(true);
   el.lbImage.src = `/api/preview?path=${encodeURIComponent(file.path)}&size=full`;
+  if (el.lbImage.complete && el.lbImage.naturalWidth > 0) {
+    el.lbImage.classList.add("loaded");
+    setLightboxLoading(false);
+  }
   el.lbFilename.textContent = file.name;
   el.lbCounter.textContent = `${state.lightboxIndex + 1} / ${state.previewable.length}`;
-  el.lbPrev.disabled = state.lightboxIndex === 0;
-  el.lbNext.disabled = state.lightboxIndex === state.previewable.length - 1;
   el.lbLike.classList.toggle("liked", state.likedSet.has(file.path));
 
   preload(state.lightboxIndex + 1);
   preload(state.lightboxIndex - 1);
 }
+
+el.lbImage.addEventListener("load", () => {
+  if (el.lightbox.classList.contains("hidden")) return;
+  el.lbImage.classList.add("loaded");
+  setLightboxLoading(false);
+});
+
+el.lbImage.addEventListener("error", () => {
+  setLightboxLoading(false);
+});
 
 function preload(index) {
   const file = state.previewable[index];
@@ -412,6 +453,7 @@ function preload(index) {
 }
 
 function lightboxNext() {
+  if (state.lightboxLoading) return;
   if (state.lightboxIndex < state.previewable.length - 1) {
     state.lightboxIndex += 1;
     showLightboxImage();
@@ -419,6 +461,7 @@ function lightboxNext() {
 }
 
 function lightboxPrev() {
+  if (state.lightboxLoading) return;
   if (state.lightboxIndex > 0) {
     state.lightboxIndex -= 1;
     showLightboxImage();

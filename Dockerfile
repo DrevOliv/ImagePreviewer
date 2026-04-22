@@ -1,18 +1,31 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS builder
 
-# LibRaw is required by rawpy on ARM; on amd64 the wheel bundles it, but
-# installing the runtime lib is cheap insurance and enables source builds.
+# Build-time deps: headers + toolchain so pip can compile wheels from source
+# if no prebuilt wheel is available (mainly rawpy on ARM).
 RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential \
       libraw-dev \
       libjpeg-dev \
       libtiff-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
+
+FROM python:3.11-slim
+
+# Runtime-only shared libraries used by rawpy / Pillow.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libraw23 \
+      libjpeg62-turbo \
+      libtiff6 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /install /usr/local
+
+WORKDIR /app
 COPY app ./app
 
 ENV DATA_ROOT=/data \
