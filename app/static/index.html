@@ -2,10 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Filvisare</title>
   <link rel="icon" type="image/png" href="/static/icon.png" />
-  <link rel="apple-touch-icon" href="/static/icon.png" />
+
+  <!-- Installable web app (PWA) -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#111214" />
+
+  <!-- iOS / iPhone "Add to Home Screen" -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Filvisare" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body>
@@ -145,5 +156,12 @@
   </div>
 
   <script src="/static/js/app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
