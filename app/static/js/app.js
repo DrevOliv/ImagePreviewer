@@ -31,6 +31,8 @@ const el = {
   empty: document.getElementById("empty"),
   loading: document.getElementById("loading"),
   location: document.getElementById("location"),
+  sizeChip: document.getElementById("size-chip"),
+  sizeChipLabel: document.getElementById("size-chip-label"),
   tree: document.getElementById("tree"),
   logout: document.getElementById("logout-btn"),
   likesBtn: document.getElementById("likes-btn"),
@@ -167,6 +169,7 @@ function render() {
   // in the liked view, which isn't a real folder.
   el.uploadBtn.classList.remove("hidden");
   el.newFolderBtn.classList.remove("hidden");
+  resetSizeChip();
   renderGrid();
 }
 
@@ -174,7 +177,63 @@ function renderLiked() {
   el.location.textContent = "Liked Images";
   el.uploadBtn.classList.add("hidden");
   el.newFolderBtn.classList.add("hidden");
+  el.sizeChip.classList.add("hidden");
   renderGrid();
+}
+
+// ───── Folder size ─────
+// Computing a folder's size walks the whole subtree, which is slow on a big or
+// sluggish drive — so we never do it automatically. The chip sits idle until
+// the user taps it, then shows a spinner while the scan runs.
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const rounded = value >= 100 || unit === 0 ? Math.round(value) : value.toFixed(1);
+  return `${rounded} ${units[unit]}`;
+}
+
+// Token guards against a slow scan landing after the user moved to another
+// folder, and against double-taps while one is already in flight.
+let folderSizeToken = 0;
+let folderSizeBusy = false;
+
+function resetSizeChip() {
+  folderSizeToken++; // invalidate any in-flight scan from the previous folder
+  folderSizeBusy = false;
+  el.sizeChip.classList.remove("hidden", "is-loading");
+  el.sizeChip.title = "Calculate this folder's size on disk";
+  el.sizeChipLabel.textContent = "Calculate size";
+}
+
+async function calculateFolderSize() {
+  if (folderSizeBusy || state.likedView) return;
+  folderSizeBusy = true;
+  const token = ++folderSizeToken;
+  const path = state.path;
+  el.sizeChip.classList.add("is-loading");
+  el.sizeChipLabel.textContent = "Calculating…";
+  try {
+    const data = await api(`/api/browse/size?path=${encodeURIComponent(path)}`);
+    if (token !== folderSizeToken) return; // user navigated away
+    el.sizeChipLabel.textContent =
+      `${formatBytes(data.bytes)} · ${data.files} file${data.files === 1 ? "" : "s"}`;
+    el.sizeChip.title = "Tap to recalculate";
+  } catch (err) {
+    if (token !== folderSizeToken) return;
+    el.sizeChipLabel.textContent = "Calculate size";
+    if (err.message !== "unauthorized") el.sizeChip.title = "Couldn't read size — tap to retry";
+  } finally {
+    if (token === folderSizeToken) {
+      el.sizeChip.classList.remove("is-loading");
+      folderSizeBusy = false;
+    }
+  }
 }
 
 const HEART_BADGE_SVG = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 21s-7.5-4.58-10-9.13C.49 8.36 2.42 5 5.5 5c1.74 0 3.41.81 4.5 2.09C11.09 5.81 12.76 5 14.5 5 17.58 5 19.51 8.36 18 11.87 19.5 16.42 12 21 12 21z"/></svg>`;
@@ -619,6 +678,7 @@ function toggleSidebar() {
 el.menuBtn.addEventListener("click", toggleSidebar);
 el.sidebarClose.addEventListener("click", closeSidebar);
 el.sidebarBackdrop.addEventListener("click", closeSidebar);
+el.sizeChip.addEventListener("click", calculateFolderSize);
 
 // A drawer left open while rotating to a wide layout would otherwise linger.
 mobileQuery.addEventListener("change", (e) => {

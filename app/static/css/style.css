@@ -285,6 +285,13 @@ img {
   gap: 8px;
 }
 
+.location-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
 .location {
   margin: 0;
   font-size: 15px;
@@ -294,6 +301,56 @@ img {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 60vw;
+}
+
+.size-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.size-chip:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* The spinner replaces the bar-chart icon only while a scan is running. */
+.size-ico-spin {
+  display: none;
+  color: currentColor;
+  animation: spin 0.9s linear infinite;
+}
+.size-ico-spin circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 90 150;
+}
+.size-chip.is-loading {
+  cursor: default;
+}
+.size-chip.is-loading .size-ico-chart {
+  display: none;
+}
+.size-chip.is-loading .size-ico-spin {
+  display: inline-block;
 }
 
 .pill-btn {
