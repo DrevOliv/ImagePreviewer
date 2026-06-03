@@ -24,6 +24,8 @@ html, body {
     Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
   min-height: 100vh;
+  /* Kill the grey tap-flash iOS paints over every tapped element. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 button {
@@ -206,13 +208,16 @@ img {
   cursor: pointer;
   color: var(--text-dim);
   user-select: none;
+  touch-action: manipulation;
   border-left: 2px solid transparent;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
-.tree-row:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+  .tree-row:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
 }
 
 .tree-row.selected {
@@ -273,6 +278,11 @@ img {
   align-items: center;
   justify-content: space-between;
   padding: 10px 18px;
+  /* Keep the bar's content out of the notch / rounded corners. The background
+     still fills the inset area because the bar is pinned to the very top. */
+  padding-top: calc(10px + env(safe-area-inset-top));
+  padding-left: max(18px, env(safe-area-inset-left));
+  padding-right: max(18px, env(safe-area-inset-right));
   background: rgba(17, 18, 20, 0.85);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -400,6 +410,8 @@ img {
   cursor: pointer;
   transition: background 0.15s, transform 0.15s;
   user-select: none;
+  /* Tap registers immediately (no 300ms wait) and double-tap won't zoom. */
+  touch-action: manipulation;
   position: relative;
   /* Skip rendering off-screen tiles — native virtualization. The `auto`
      keyword makes a tile remember its real size once rendered, so scrolling
@@ -408,8 +420,12 @@ img {
   contain-intrinsic-size: auto 240px;
 }
 
-.item:hover {
-  background: var(--bg-hover);
+/* Only apply hover on devices with a real pointer; otherwise the highlight
+   "sticks" on a tapped folder until you tap elsewhere, which feels broken. */
+@media (hover: hover) {
+  .item:hover {
+    background: var(--bg-hover);
+  }
 }
 
 .item:active {
@@ -856,8 +872,8 @@ body.select-mode .item.selected {
 
 .lightbox-close {
   position: absolute;
-  top: 16px;
-  right: 20px;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(20px + env(safe-area-inset-right));
   color: var(--text-dim);
   width: 40px;
   height: 40px;
@@ -876,8 +892,8 @@ body.select-mode .item.selected {
 
 .lightbox-fs {
   position: absolute;
-  top: 16px;
-  right: 68px;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(68px + env(safe-area-inset-right));
   color: var(--text-dim);
   width: 40px;
   height: 40px;
@@ -914,8 +930,8 @@ body.select-mode .item.selected {
   background: rgba(60, 63, 69, 0.9);
 }
 
-.lightbox-nav.lb-prev { left: 16px; }
-.lightbox-nav.lb-next { right: 16px; }
+.lightbox-nav.lb-prev { left: calc(16px + env(safe-area-inset-left)); }
+.lightbox-nav.lb-next { right: calc(16px + env(safe-area-inset-right)); }
 
 .lightbox-nav:disabled {
   opacity: 0.25;
@@ -927,12 +943,16 @@ body.select-mode .item.selected {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 56px;
+  /* Grow to cover the home-indicator inset and keep controls above it. */
+  height: calc(56px + env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
   padding: 0 24px;
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
   background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
   color: var(--text);
   transition: opacity 0.25s ease;
@@ -1108,6 +1128,10 @@ body.select-mode .item.selected {
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     box-shadow: var(--shadow);
+    /* Push the drawer's contents below the notch and clear of a side inset. */
+    padding-top: calc(8px + env(safe-area-inset-top));
+    padding-left: env(safe-area-inset-left);
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
   }
   .sidebar.open {
     transform: translateX(0);
@@ -1145,6 +1169,9 @@ body.select-mode .item.selected {
   /* Toolbar: compact, icon-only buttons that wrap instead of overflowing. */
   .toolbar {
     padding: 8px 10px;
+    padding-top: calc(8px + env(safe-area-inset-top));
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
     gap: 6px;
     flex-wrap: wrap;
   }
@@ -1177,6 +1204,9 @@ body.select-mode .item.selected {
     grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
     gap: 10px;
     padding: 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
   .item {
     padding: 6px;
@@ -1199,9 +1229,9 @@ body.select-mode .item.selected {
     top: 36px;
   }
 
-  /* Lift the video controls clear of the footer on short screens. */
+  /* Lift the video controls clear of the (now inset-aware) footer. */
   .video-controls {
-    bottom: 64px;
+    bottom: calc(64px + env(safe-area-inset-bottom));
   }
 
   /* Anchor the dialog near the top so the on-screen keyboard can't cover it. */

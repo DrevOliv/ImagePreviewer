@@ -296,28 +296,88 @@ function pumpRender() {
   });
 }
 
-// Grid <video> thumbnails are mounted lazily. A live <video> per tile would
-// crater scrolling and exhaust the browser's video-decoder pool in a big
-// folder (which is why thumbnails further down stop appearing). We attach the
-// src only while a tile is near the viewport and drop it once it scrolls away.
+// Grid <video> thumbnails are mounted lazily AND throttled. A live <video> per
+// tile streams the real file off the (possibly slow) drive and holds one of the
+// browser's scarce decoder slots, so mounting a whole folder of them at once
+// craters scrolling. The IntersectionObserver below decides which tiles are
+// *eligible*; this queue then streams at most VIDEO_THUMB_CONCURRENCY at a time
+// and frees the slot the moment a frame decodes (or the tile scrolls away).
+const VIDEO_THUMB_CONCURRENCY = 3;
+let videoLoadQueue = [];   // nodes waiting for a free slot (FIFO)
+let videoLoadActive = 0;   // how many are streaming right now
+
+function resetVideoThumbQueue() {
+  videoLoadQueue = [];
+  videoLoadActive = 0;
+}
+
+function pumpVideoQueue() {
+  while (videoLoadActive < VIDEO_THUMB_CONCURRENCY && videoLoadQueue.length) {
+    const node = videoLoadQueue.shift();
+    const video = node.querySelector("video");
+    if (!video) continue;
+    delete video.dataset.queued;
+    // It may have scrolled away (and been dropped) while waiting in line.
+    if (!node.isConnected || !video.dataset.src || video.getAttribute("src")) continue;
+    startVideoThumb(video);
+  }
+}
+
+function startVideoThumb(video) {
+  const thumb = video.parentElement;
+  video.dataset.loading = "1";
+  videoLoadActive++;
+  if (!video.classList.contains("loaded")) thumb.classList.add("loading");
+  let timer;
+  const release = () => {
+    if (video.dataset.loading !== "1") return; // already released
+    delete video.dataset.loading;
+    clearTimeout(timer);
+    videoLoadActive = Math.max(0, videoLoadActive - 1);
+    pumpVideoQueue();
+  };
+  // Free the slot as soon as the first frame is decoded (or it errors out).
+  video.addEventListener("loadeddata", release, { once: true });
+  video.addEventListener("error", release, { once: true });
+  // Safety net: a fetch can stall on a slow drive — never let it block the queue.
+  timer = setTimeout(release, 12000);
+  video.setAttribute("src", video.dataset.src);
+  video.load();
+}
+
 const videoThumbObserver = new IntersectionObserver(
   (entries) => {
     for (const entry of entries) {
-      const video = entry.target.querySelector("video");
+      const node = entry.target;
+      const video = node.querySelector("video");
       if (!video) continue;
       const thumb = video.parentElement;
       if (entry.isIntersecting) {
-        if (!video.getAttribute("src") && video.dataset.src) {
-          if (!video.classList.contains("loaded")) thumb.classList.add("loading");
-          video.setAttribute("src", video.dataset.src);
-          video.load();
+        // Eligible to load: queue it unless it's already queued/loading/loaded.
+        if (!video.getAttribute("src") && video.dataset.src && video.dataset.queued !== "1") {
+          video.dataset.queued = "1";
+          videoLoadQueue.push(node);
+          pumpVideoQueue();
         }
-      } else if (video.getAttribute("src")) {
-        // Off-screen: drop the src so the decoder and connection are freed.
-        video.removeAttribute("src");
-        video.load();
-        video.classList.remove("loaded");
-        thumb.classList.remove("loading");
+      } else {
+        // Off-screen: pull it from the queue and/or drop the src so the slot,
+        // decoder and connection are freed for tiles that are actually visible.
+        if (video.dataset.queued === "1") {
+          const i = videoLoadQueue.indexOf(node);
+          if (i !== -1) videoLoadQueue.splice(i, 1);
+          delete video.dataset.queued;
+        }
+        if (video.dataset.loading === "1") {
+          delete video.dataset.loading;
+          videoLoadActive = Math.max(0, videoLoadActive - 1);
+          pumpVideoQueue();
+        }
+        if (video.getAttribute("src")) {
+          video.removeAttribute("src");
+          video.load();
+          video.classList.remove("loaded");
+          thumb.classList.remove("loading");
+        }
       }
     }
   },
@@ -334,6 +394,7 @@ function renderGrid() {
 
   teardownIncrementalRender();
   videoThumbObserver.disconnect();
+  resetVideoThumbQueue();
   el.grid.replaceChildren();
 
   renderQueue = [

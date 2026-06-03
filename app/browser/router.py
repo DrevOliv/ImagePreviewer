@@ -103,7 +103,12 @@ def _dir_size(root: Path) -> tuple[int, int]:
     while stack:
         current = stack.pop()
         try:
-            entries = current.iterdir()
+            # Materialise with list() so the directory read happens inside this
+            # try: on Python 3.11 Path.iterdir() is a lazy generator, so the
+            # actual os.listdir (and any PermissionError on a read-only / root-
+            # squashed mount) only fires when iterated. Skip folders we can't
+            # read rather than failing the whole request.
+            entries = list(current.iterdir())
         except OSError:
             continue
         for entry in entries:

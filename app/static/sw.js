@@ -6,7 +6,7 @@
 // always fetched from the network so nothing stale or unauthorised is served
 // from the cache.
 
-const CACHE = "filvisare-shell-v2";
+const CACHE = "filvisare-shell-v4";
 const SHELL = [
   "/static/css/style.css",
   "/static/js/app.js",
