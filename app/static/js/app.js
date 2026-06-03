@@ -43,6 +43,7 @@ const el = {
   newFolderBtn: document.getElementById("new-folder-btn"),
   sidebar: document.getElementById("sidebar"),
   menuBtn: document.getElementById("menu-btn"),
+  backBtn: document.getElementById("back-btn"),
   sidebarClose: document.getElementById("sidebar-close"),
   sidebarBackdrop: document.getElementById("sidebar-backdrop"),
   modal: document.getElementById("modal"),
@@ -109,7 +110,10 @@ async function toggleLike(path) {
 }
 
 // ───── Navigation ─────
-async function navigate(path) {
+// `push` controls the browser history: opening a folder pushes a new entry so
+// the phone/hardware back button (and the in-app one) walks back out of it,
+// while refreshes and back/forward themselves only replace the current entry.
+async function navigate(path, { push = true } = {}) {
   state.likedView = false;
   el.likesBtn.classList.remove("active");
   showLoading(true);
@@ -120,7 +124,12 @@ async function navigate(path) {
     state.folders = data.folders;
     state.files = data.files;
     state.previewable = data.files.filter((f) => f.previewable);
-    window.history.replaceState({}, "", `#/${state.path}`);
+    const url = `#/${state.path}`;
+    if (push && location.hash !== url) {
+      window.history.pushState({ path: state.path }, "", url);
+    } else {
+      window.history.replaceState({ path: state.path }, "", url);
+    }
     render();
     revealAndSelect(state.path);
     warmFullPreviews();
@@ -130,6 +139,42 @@ async function navigate(path) {
     showLoading(false);
   }
 }
+
+// The parent of "a/b/c" is "a/b"; the parent of a top-level folder is the root.
+function parentPath(path) {
+  if (!path) return "";
+  const i = path.lastIndexOf("/");
+  return i === -1 ? "" : path.slice(0, i);
+}
+
+// The toolbar back button: step up one folder (or leave the liked view). It
+// always targets the *parent*, regardless of how the user got here.
+function goBack() {
+  if (state.likedView) {
+    navigate(state.path || "");
+    return;
+  }
+  if (!state.path) return; // already at the root
+  navigate(parentPath(state.path));
+}
+
+// Reflect whether there's anywhere to go back to (hidden at the root).
+function updateBackButton() {
+  const canGoBack = state.likedView || !!state.path;
+  el.backBtn.classList.toggle("hidden", !canGoBack);
+}
+
+// Browser / hardware back & forward. With the lightbox open, the back press
+// just closes it (its history entry sits on top of the folder's). Otherwise
+// re-load whatever folder the URL now names.
+window.addEventListener("popstate", () => {
+  if (!el.lightbox.classList.contains("hidden")) {
+    closeLightbox();
+    return;
+  }
+  const target = decodeURIComponent((location.hash || "").replace(/^#\/?/, ""));
+  navigate(target, { push: false });
+});
 
 async function showLikedView() {
   state.likedView = true;
@@ -170,6 +215,7 @@ function render() {
   el.uploadBtn.classList.remove("hidden");
   el.newFolderBtn.classList.remove("hidden");
   resetSizeChip();
+  updateBackButton();
   renderGrid();
 }
 
@@ -178,6 +224,7 @@ function renderLiked() {
   el.uploadBtn.classList.add("hidden");
   el.newFolderBtn.classList.add("hidden");
   el.sizeChip.classList.add("hidden");
+  updateBackButton();
   renderGrid();
 }
 
@@ -737,6 +784,7 @@ function toggleSidebar() {
 }
 
 el.menuBtn.addEventListener("click", toggleSidebar);
+el.backBtn.addEventListener("click", goBack);
 el.sidebarClose.addEventListener("click", closeSidebar);
 el.sidebarBackdrop.addEventListener("click", closeSidebar);
 el.sizeChip.addEventListener("click", calculateFolderSize);
@@ -751,7 +799,20 @@ function openLightbox(index) {
   state.lightboxIndex = index;
   el.lightbox.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+  // Push a history entry so the phone/hardware back button closes the viewer
+  // first, instead of stepping out of the folder behind it.
+  window.history.pushState({ path: state.path, lightbox: true }, "", location.hash);
   showLightboxImage();
+}
+
+// User-initiated close (X, backdrop, Escape): unwind the history entry we
+// pushed on open, which fires popstate → closeLightbox().
+function dismissLightbox() {
+  if (window.history.state && window.history.state.lightbox) {
+    window.history.back();
+  } else {
+    closeLightbox();
+  }
 }
 
 function closeLightbox() {
@@ -1049,6 +1110,10 @@ function toggleSelectMode() {
   if (!state.selectMode) state.selected.clear();
   document.body.classList.toggle("select-mode", state.selectMode);
   el.selectBtn.classList.toggle("active", state.selectMode);
+  // On the mobile tab bar the Select tab doubles as the way out of select
+  // mode, so label it accordingly.
+  const selectLabel = el.selectBtn.querySelector(".btn-label");
+  if (selectLabel) selectLabel.textContent = state.selectMode ? "Done" : "Select";
   refreshSelectionClasses();
   updateDownloadButton();
   updateSelectAllButton();
@@ -1197,7 +1262,7 @@ function uploadFiles(fileList) {
       return;
     }
     if (xhr.status >= 200 && xhr.status < 300) {
-      await navigate(state.path || "");
+      await navigate(state.path || "", { push: false });
     } else {
       let detail = `Upload failed: ${xhr.status}`;
       try { detail = JSON.parse(xhr.responseText).detail || detail; } catch (_) {}
@@ -1297,7 +1362,7 @@ function createFolder() {
       }
       closePromptModal();
       await initTree();                 // surface the new folder in the sidebar
-      await navigate(state.path || "");
+      await navigate(state.path || "", { push: false });
     },
   });
 }
@@ -1327,7 +1392,7 @@ el.logout.addEventListener("click", async () => {
 });
 
 el.likesBtn.addEventListener("click", () => {
-  if (state.likedView) navigate(state.path || "");
+  if (state.likedView) navigate(state.path || "", { push: false });
   else showLikedView();
 });
 
@@ -1358,13 +1423,13 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-el.lbClose.addEventListener("click", closeLightbox);
+el.lbClose.addEventListener("click", dismissLightbox);
 el.lbPrev.addEventListener("click", lightboxPrev);
 el.lbNext.addEventListener("click", lightboxNext);
 el.lbLike.addEventListener("click", toggleCurrentLike);
 el.lightbox.addEventListener("click", (e) => {
   if (e.target === el.lightbox || e.target.classList.contains("lightbox-stage")) {
-    closeLightbox();
+    dismissLightbox();
   }
 });
 
@@ -1395,7 +1460,7 @@ document.addEventListener("keydown", (e) => {
   if (el.lightbox.classList.contains("hidden")) return;
   const videoActive = !el.lbVideoWrap.classList.contains("hidden");
   const onScrubber = document.activeElement === el.vcScrub;
-  if (e.key === "Escape") closeLightbox();
+  if (e.key === "Escape") dismissLightbox();
   else if (e.key === " " && videoActive) { e.preventDefault(); togglePlay(); }
   else if (e.key === "ArrowLeft" && !onScrubber) lightboxPrev();
   else if (e.key === "ArrowRight" && !onScrubber) lightboxNext();
@@ -1408,7 +1473,7 @@ document.addEventListener("keydown", (e) => {
     await loadLikes();
     await initTree();
     const initial = decodeURIComponent((window.location.hash || "").replace(/^#\/?/, ""));
-    await navigate(initial);
+    await navigate(initial, { push: false });
   } catch (err) {
     if (err.message !== "unauthorized") alert(err.message);
   }

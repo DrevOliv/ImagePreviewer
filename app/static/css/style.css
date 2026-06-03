@@ -26,6 +26,8 @@ html, body {
   min-height: 100vh;
   /* Kill the grey tap-flash iOS paints over every tapped element. */
   -webkit-tap-highlight-color: transparent;
+  /* App-like: no page-level rubber-banding / pull-to-refresh on the shell. */
+  overscroll-behavior-y: none;
 }
 
 button {
@@ -1110,6 +1112,7 @@ body.select-mode .item.selected {
 /* These three only ever appear on small screens; hidden by default so the
    desktop layout is untouched. */
 .menu-btn,
+.back-btn,
 .sidebar-close,
 .sidebar-backdrop {
   display: none;
@@ -1166,47 +1169,164 @@ body.select-mode .item.selected {
     color: var(--text);
   }
 
-  /* Toolbar: compact, icon-only buttons that wrap instead of overflowing. */
+  /* ── Top header: a clean app title bar (menu · title · size) ── */
   .toolbar {
-    padding: 8px 10px;
-    padding-top: calc(8px + env(safe-area-inset-top));
-    padding-left: max(10px, env(safe-area-inset-left));
-    padding-right: max(10px, env(safe-area-inset-right));
-    gap: 6px;
-    flex-wrap: wrap;
+    padding: 10px 12px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    gap: 10px;
+    /* IMPORTANT: no backdrop-filter here on mobile. A filtered element becomes
+       the containing block for its position:fixed descendants, which would pin
+       the bottom action bar (.toolbar-right) to the bottom of *this* top bar
+       instead of the viewport — landing all the actions up at the top. A solid
+       bar keeps the bottom bar anchored to the screen. */
+    background: rgb(20, 21, 24);
+    backdrop-filter: none;
   }
   .toolbar-left {
     flex: 1 1 auto;
     min-width: 0;
-    gap: 6px;
-  }
-  .toolbar-right {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
+    gap: 10px;
   }
   .location {
     max-width: none;
-    font-size: 14px;
+    font-size: 18px;
+    font-weight: 600;
   }
-  .toolbar .btn-label {
-    display: none;
+  .menu-btn,
+  .back-btn {
+    display: inline-flex;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+    flex-shrink: 0;
   }
-  .pill-btn {
-    padding: 8px;
+  /* The back button only earns its place inside a subfolder; .hidden (toggled
+     from JS) keeps it out of the bar at the root, so the title sits flush. */
+  .back-btn.hidden {
+    display: none !important;
+  }
+
+  /* ── Bottom tab bar: the toolbar's actions, native-app style ──
+     The same buttons (and their handlers) get pinned to the bottom of the
+     screen as evenly-spaced icon+label tabs, the way a downloaded app lays
+     out its primary actions. */
+  .toolbar-right {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    display: flex;
+    justify-content: space-evenly;
+    align-items: stretch;
+    gap: 2px;
+    padding: 8px 6px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    padding-left: max(6px, env(safe-area-inset-left));
+    padding-right: max(6px, env(safe-area-inset-right));
+    background: rgba(20, 21, 24, 0.96);
+    backdrop-filter: blur(18px) saturate(140%);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.28);
+  }
+  .toolbar-right .pill-btn,
+  .toolbar-right .download-wrap {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 92px;
+  }
+  .toolbar-right .pill-btn {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-height: 50px;
+    padding: 6px 2px;
+    border: none;
+    background: none;
+    border-radius: 14px;
+    color: var(--text-dim);
+    transition: color 0.15s, background 0.15s, transform 0.1s;
+  }
+  .toolbar-right .pill-btn svg {
+    width: 23px;
+    height: 23px;
+    stroke-width: 1.9;
+  }
+  .toolbar-right .pill-btn:active {
+    background: var(--bg-hover);
+    transform: scale(0.92);
+  }
+  /* Labels return — tiny, beneath each icon, like a real tab bar. */
+  .toolbar-right .btn-label {
+    display: block;
+    max-width: 100%;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Upload / Download read as the accented primary tabs, not filled buttons. */
+  #upload-btn,
+  #download-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+  }
+  .toolbar-right .download-wrap {
+    display: inline-flex;
+  }
+  .toolbar-right .download-wrap .pill-btn {
+    width: 100%;
+    max-width: none;
   }
   .download-wrap .caret {
     display: none;
   }
+  /* An active tab (Select on, Liked view) glows in its accent with a soft
+     tinted pill behind it — the only filled state in the bar. */
+  .toolbar-right .pill-btn.active {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  #likes-btn.active {
+    color: var(--heart);
+  }
+  #select-btn.active,
+  #select-all-btn.active {
+    color: var(--accent);
+  }
 
-  /* Grid: more columns of smaller tiles. */
+  /* In select mode the bar collapses to a contextual action set:
+     Download · Select all · Done. */
+  body.select-mode #upload-btn,
+  body.select-mode #new-folder-btn,
+  body.select-mode #likes-btn,
+  body.select-mode #logout-btn {
+    display: none;
+  }
+
+  /* The download-format menu opens upward, clear of the bottom bar. */
+  .download-menu {
+    top: auto;
+    bottom: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    min-width: 0;
+  }
+
+  /* Grid: more columns of smaller tiles, clearing the bottom tab bar. */
   .grid {
     grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
     gap: 10px;
     padding: 12px;
     padding-left: max(12px, env(safe-area-inset-left));
     padding-right: max(12px, env(safe-area-inset-right));
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
   .item {
     padding: 6px;
