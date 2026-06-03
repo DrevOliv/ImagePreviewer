@@ -24,6 +24,10 @@ html, body {
     Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
   min-height: 100vh;
+  /* Kill the grey tap-flash iOS paints over every tapped element. */
+  -webkit-tap-highlight-color: transparent;
+  /* App-like: no page-level rubber-banding / pull-to-refresh on the shell. */
+  overscroll-behavior-y: none;
 }
 
 button {
@@ -206,13 +210,16 @@ img {
   cursor: pointer;
   color: var(--text-dim);
   user-select: none;
+  touch-action: manipulation;
   border-left: 2px solid transparent;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
-.tree-row:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+  .tree-row:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
 }
 
 .tree-row.selected {
@@ -273,6 +280,11 @@ img {
   align-items: center;
   justify-content: space-between;
   padding: 10px 18px;
+  /* Keep the bar's content out of the notch / rounded corners. The background
+     still fills the inset area because the bar is pinned to the very top. */
+  padding-top: calc(10px + env(safe-area-inset-top));
+  padding-left: max(18px, env(safe-area-inset-left));
+  padding-right: max(18px, env(safe-area-inset-right));
   background: rgba(17, 18, 20, 0.85);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -285,6 +297,13 @@ img {
   gap: 8px;
 }
 
+.location-wrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
 .location {
   margin: 0;
   font-size: 15px;
@@ -294,6 +313,56 @@ img {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 60vw;
+}
+
+.size-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.size-chip:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* The spinner replaces the bar-chart icon only while a scan is running. */
+.size-ico-spin {
+  display: none;
+  color: currentColor;
+  animation: spin 0.9s linear infinite;
+}
+.size-ico-spin circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 90 150;
+}
+.size-chip.is-loading {
+  cursor: default;
+}
+.size-chip.is-loading .size-ico-chart {
+  display: none;
+}
+.size-chip.is-loading .size-ico-spin {
+  display: inline-block;
 }
 
 .pill-btn {
@@ -343,6 +412,8 @@ img {
   cursor: pointer;
   transition: background 0.15s, transform 0.15s;
   user-select: none;
+  /* Tap registers immediately (no 300ms wait) and double-tap won't zoom. */
+  touch-action: manipulation;
   position: relative;
   /* Skip rendering off-screen tiles — native virtualization. The `auto`
      keyword makes a tile remember its real size once rendered, so scrolling
@@ -351,8 +422,12 @@ img {
   contain-intrinsic-size: auto 240px;
 }
 
-.item:hover {
-  background: var(--bg-hover);
+/* Only apply hover on devices with a real pointer; otherwise the highlight
+   "sticks" on a tapped folder until you tap elsewhere, which feels broken. */
+@media (hover: hover) {
+  .item:hover {
+    background: var(--bg-hover);
+  }
 }
 
 .item:active {
@@ -799,8 +874,8 @@ body.select-mode .item.selected {
 
 .lightbox-close {
   position: absolute;
-  top: 16px;
-  right: 20px;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(20px + env(safe-area-inset-right));
   color: var(--text-dim);
   width: 40px;
   height: 40px;
@@ -819,8 +894,8 @@ body.select-mode .item.selected {
 
 .lightbox-fs {
   position: absolute;
-  top: 16px;
-  right: 68px;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(68px + env(safe-area-inset-right));
   color: var(--text-dim);
   width: 40px;
   height: 40px;
@@ -857,8 +932,8 @@ body.select-mode .item.selected {
   background: rgba(60, 63, 69, 0.9);
 }
 
-.lightbox-nav.lb-prev { left: 16px; }
-.lightbox-nav.lb-next { right: 16px; }
+.lightbox-nav.lb-prev { left: calc(16px + env(safe-area-inset-left)); }
+.lightbox-nav.lb-next { right: calc(16px + env(safe-area-inset-right)); }
 
 .lightbox-nav:disabled {
   opacity: 0.25;
@@ -870,12 +945,16 @@ body.select-mode .item.selected {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 56px;
+  /* Grow to cover the home-indicator inset and keep controls above it. */
+  height: calc(56px + env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
   padding: 0 24px;
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
   background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
   color: var(--text);
   transition: opacity 0.25s ease;
@@ -1033,6 +1112,7 @@ body.select-mode .item.selected {
 /* These three only ever appear on small screens; hidden by default so the
    desktop layout is untouched. */
 .menu-btn,
+.back-btn,
 .sidebar-close,
 .sidebar-backdrop {
   display: none;
@@ -1051,6 +1131,10 @@ body.select-mode .item.selected {
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     box-shadow: var(--shadow);
+    /* Push the drawer's contents below the notch and clear of a side inset. */
+    padding-top: calc(8px + env(safe-area-inset-top));
+    padding-left: env(safe-area-inset-left);
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
   }
   .sidebar.open {
     transform: translateX(0);
@@ -1085,41 +1169,164 @@ body.select-mode .item.selected {
     color: var(--text);
   }
 
-  /* Toolbar: compact, icon-only buttons that wrap instead of overflowing. */
+  /* ── Top header: a clean app title bar (menu · title · size) ── */
   .toolbar {
-    padding: 8px 10px;
-    gap: 6px;
-    flex-wrap: wrap;
+    padding: 10px 12px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    gap: 10px;
+    /* IMPORTANT: no backdrop-filter here on mobile. A filtered element becomes
+       the containing block for its position:fixed descendants, which would pin
+       the bottom action bar (.toolbar-right) to the bottom of *this* top bar
+       instead of the viewport — landing all the actions up at the top. A solid
+       bar keeps the bottom bar anchored to the screen. */
+    background: rgb(20, 21, 24);
+    backdrop-filter: none;
   }
   .toolbar-left {
     flex: 1 1 auto;
     min-width: 0;
-    gap: 6px;
-  }
-  .toolbar-right {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
+    gap: 10px;
   }
   .location {
     max-width: none;
-    font-size: 14px;
+    font-size: 18px;
+    font-weight: 600;
   }
-  .toolbar .btn-label {
-    display: none;
+  .menu-btn,
+  .back-btn {
+    display: inline-flex;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+    flex-shrink: 0;
   }
-  .pill-btn {
-    padding: 8px;
+  /* The back button only earns its place inside a subfolder; .hidden (toggled
+     from JS) keeps it out of the bar at the root, so the title sits flush. */
+  .back-btn.hidden {
+    display: none !important;
+  }
+
+  /* ── Bottom tab bar: the toolbar's actions, native-app style ──
+     The same buttons (and their handlers) get pinned to the bottom of the
+     screen as evenly-spaced icon+label tabs, the way a downloaded app lays
+     out its primary actions. */
+  .toolbar-right {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    display: flex;
+    justify-content: space-evenly;
+    align-items: stretch;
+    gap: 2px;
+    padding: 8px 6px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    padding-left: max(6px, env(safe-area-inset-left));
+    padding-right: max(6px, env(safe-area-inset-right));
+    background: rgba(20, 21, 24, 0.96);
+    backdrop-filter: blur(18px) saturate(140%);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.28);
+  }
+  .toolbar-right .pill-btn,
+  .toolbar-right .download-wrap {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 92px;
+  }
+  .toolbar-right .pill-btn {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-height: 50px;
+    padding: 6px 2px;
+    border: none;
+    background: none;
+    border-radius: 14px;
+    color: var(--text-dim);
+    transition: color 0.15s, background 0.15s, transform 0.1s;
+  }
+  .toolbar-right .pill-btn svg {
+    width: 23px;
+    height: 23px;
+    stroke-width: 1.9;
+  }
+  .toolbar-right .pill-btn:active {
+    background: var(--bg-hover);
+    transform: scale(0.92);
+  }
+  /* Labels return — tiny, beneath each icon, like a real tab bar. */
+  .toolbar-right .btn-label {
+    display: block;
+    max-width: 100%;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Upload / Download read as the accented primary tabs, not filled buttons. */
+  #upload-btn,
+  #download-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+  }
+  .toolbar-right .download-wrap {
+    display: inline-flex;
+  }
+  .toolbar-right .download-wrap .pill-btn {
+    width: 100%;
+    max-width: none;
   }
   .download-wrap .caret {
     display: none;
   }
+  /* An active tab (Select on, Liked view) glows in its accent with a soft
+     tinted pill behind it — the only filled state in the bar. */
+  .toolbar-right .pill-btn.active {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  #likes-btn.active {
+    color: var(--heart);
+  }
+  #select-btn.active,
+  #select-all-btn.active {
+    color: var(--accent);
+  }
 
-  /* Grid: more columns of smaller tiles. */
+  /* In select mode the bar collapses to a contextual action set:
+     Download · Select all · Done. */
+  body.select-mode #upload-btn,
+  body.select-mode #new-folder-btn,
+  body.select-mode #likes-btn,
+  body.select-mode #logout-btn {
+    display: none;
+  }
+
+  /* The download-format menu opens upward, clear of the bottom bar. */
+  .download-menu {
+    top: auto;
+    bottom: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    min-width: 0;
+  }
+
+  /* Grid: more columns of smaller tiles, clearing the bottom tab bar. */
   .grid {
     grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
     gap: 10px;
     padding: 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
   .item {
     padding: 6px;
@@ -1142,9 +1349,9 @@ body.select-mode .item.selected {
     top: 36px;
   }
 
-  /* Lift the video controls clear of the footer on short screens. */
+  /* Lift the video controls clear of the (now inset-aware) footer. */
   .video-controls {
-    bottom: 64px;
+    bottom: calc(64px + env(safe-area-inset-bottom));
   }
 
   /* Anchor the dialog near the top so the on-screen keyboard can't cover it. */
