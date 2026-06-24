@@ -165,6 +165,32 @@
     </div>
   </div>
 
+  <div id="dup-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dup-title">
+    <div class="modal-card">
+      <h2 id="dup-title" class="modal-title">File already exists</h2>
+      <p id="dup-msg" class="dup-msg"></p>
+      <label class="dup-all">
+        <input id="dup-all" type="checkbox" />
+        <span id="dup-all-label">Do this for all duplicates</span>
+      </label>
+      <div class="modal-actions">
+        <button id="dup-skip" class="modal-btn modal-btn-secondary">Skip</button>
+        <button id="dup-upload" class="modal-btn modal-btn-primary">Upload anyway</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="upload-toast" class="upload-toast hidden" role="status" aria-live="polite">
+    <div class="upload-toast-head">
+      <span id="upload-toast-title" class="upload-toast-title">Uploading…</span>
+      <span id="upload-toast-pct" class="upload-toast-pct">0%</span>
+    </div>
+    <div class="upload-bar">
+      <div id="upload-bar-fill" class="upload-bar-fill"></div>
+    </div>
+    <div id="upload-toast-detail" class="upload-toast-detail"></div>
+  </div>
+
   <script src="/static/js/app.js"></script>
   <script>
     if ("serviceWorker" in navigator) {

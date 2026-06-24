@@ -40,6 +40,17 @@ const el = {
   selectAllBtn: document.getElementById("select-all-btn"),
   uploadBtn: document.getElementById("upload-btn"),
   uploadInput: document.getElementById("upload-input"),
+  uploadToast: document.getElementById("upload-toast"),
+  uploadToastTitle: document.getElementById("upload-toast-title"),
+  uploadToastPct: document.getElementById("upload-toast-pct"),
+  uploadBarFill: document.getElementById("upload-bar-fill"),
+  uploadToastDetail: document.getElementById("upload-toast-detail"),
+  dupModal: document.getElementById("dup-modal"),
+  dupMsg: document.getElementById("dup-msg"),
+  dupAll: document.getElementById("dup-all"),
+  dupAllLabel: document.getElementById("dup-all-label"),
+  dupSkip: document.getElementById("dup-skip"),
+  dupUpload: document.getElementById("dup-upload"),
   newFolderBtn: document.getElementById("new-folder-btn"),
   sidebar: document.getElementById("sidebar"),
   menuBtn: document.getElementById("menu-btn"),
@@ -1229,50 +1240,197 @@ function setUploadLabel(text) {
   if (label) label.textContent = text;
 }
 
-function uploadFiles(fileList) {
-  const files = Array.from(fileList || []);
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i += 1;
+  }
+  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+let uploadToastTimer = null;
+
+function showUploadToast({ state: cls = "", title, pct, detail }) {
+  clearTimeout(uploadToastTimer);
+  el.uploadToast.classList.remove("hidden", "processing", "done", "error");
+  if (cls) el.uploadToast.classList.add(cls);
+  if (title != null) el.uploadToastTitle.textContent = title;
+  if (detail != null) el.uploadToastDetail.textContent = detail;
+  if (cls === "processing") {
+    // Let the CSS sweep animation drive the bar; clear any inline width so the
+    // class-based rule applies, and show a spinner-style label.
+    el.uploadBarFill.style.width = "";
+    el.uploadToastPct.textContent = "•••";
+  } else if (pct != null) {
+    el.uploadToastPct.textContent = `${pct}%`;
+    el.uploadBarFill.style.width = `${pct}%`;
+  }
+}
+
+function hideUploadToast(delay = 0) {
+  clearTimeout(uploadToastTimer);
+  uploadToastTimer = setTimeout(() => {
+    el.uploadToast.classList.add("hidden");
+  }, delay);
+}
+
+// Files whose name collides with something already in the current folder.
+function findConflicts(files) {
+  const existing = new Set([
+    ...state.files.map((f) => f.name),
+    ...state.folders.map((f) => f.name),
+  ]);
+  return files.filter((f) => existing.has(f.name));
+}
+
+// Show the duplicate dialog for one file. Resolves to { choice, all } where
+// choice is "skip" or "upload" and `all` means apply it to every remaining one.
+let dupResolve = null;
+
+function openDupModal(name, remaining) {
+  return new Promise((resolve) => {
+    dupResolve = resolve;
+    const more = remaining > 1 ? ` (${remaining} duplicates)` : "";
+    el.dupMsg.innerHTML =
+      `<strong>${escapeHtml(name)}</strong> already exists in this folder.`;
+    el.dupAllLabel.textContent =
+      remaining > 1 ? `Do this for all ${remaining} duplicates` : "Do this for all duplicates";
+    el.dupAll.checked = false;
+    el.dupAll.parentElement.style.display = remaining > 1 ? "" : "none";
+    el.dupModal.classList.remove("hidden");
+  });
+}
+
+function closeDupModal(choice) {
+  if (!dupResolve) return;
+  const resolve = dupResolve;
+  dupResolve = null;
+  el.dupModal.classList.add("hidden");
+  resolve({ choice, all: el.dupAll.checked });
+}
+
+el.dupSkip.addEventListener("click", () => closeDupModal("skip"));
+el.dupUpload.addEventListener("click", () => closeDupModal("upload"));
+el.dupModal.addEventListener("click", (e) => {
+  // Click on the backdrop = skip this file (the safe, non-destructive choice).
+  if (e.target === el.dupModal) closeDupModal("skip");
+});
+
+// Ask about each colliding file and return the files that should be uploaded.
+async function resolveConflicts(files) {
+  const conflicts = findConflicts(files);
+  if (conflicts.length === 0) return files;
+
+  const skip = new Set();
+  let applyAll = null;
+  for (let i = 0; i < conflicts.length; i++) {
+    let choice = applyAll;
+    if (!choice) {
+      const res = await openDupModal(conflicts[i].name, conflicts.length - i);
+      choice = res.choice;
+      if (res.all) applyAll = choice;
+    }
+    if (choice === "skip") skip.add(conflicts[i]);
+  }
+  return files.filter((f) => !skip.has(f));
+}
+
+async function uploadFiles(fileList) {
+  let files = Array.from(fileList || []);
   if (files.length === 0 || state.likedView) return;
+
+  files = await resolveConflicts(files);
+  if (files.length === 0) return;   // everything was skipped
+
+  const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+  const noun = files.length === 1 ? "file" : "files";
 
   const form = new FormData();
   form.append("path", state.path || "");
   for (const file of files) form.append("files", file);
 
-  // XHR (not fetch) so the upload progress event can drive the button label.
+  // XHR (not fetch) so the upload progress event can drive the progress bar.
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "/api/upload");
 
   el.uploadBtn.disabled = true;
-  setUploadLabel("Uploading 0%");
+  setUploadLabel("Uploading…");
+  showUploadToast({
+    title: `Uploading ${files.length} ${noun}`,
+    pct: 0,
+    detail: `0 / ${formatBytes(totalBytes)}`,
+  });
 
   xhr.upload.addEventListener("progress", (e) => {
-    if (e.lengthComputable) {
-      setUploadLabel(`Uploading ${Math.round((e.loaded / e.total) * 100)}%`);
+    if (!e.lengthComputable) return;
+    const pct = Math.round((e.loaded / e.total) * 100);
+    setUploadLabel(`Uploading ${pct}%`);
+    if (e.loaded >= e.total) {
+      // Bytes are all sent; the server is now writing the files to disk. There
+      // is no further byte progress to report, so show an indeterminate state
+      // instead of a bar stuck at 100%.
+      showUploadToast({
+        state: "processing",
+        title: `Saving ${files.length} ${noun}…`,
+        detail: "Almost done — writing to disk",
+      });
+    } else {
+      showUploadToast({
+        title: `Uploading ${files.length} ${noun}`,
+        pct,
+        detail: `${formatBytes(e.loaded)} / ${formatBytes(e.total)}`,
+      });
     }
   });
 
-  const finish = () => {
+  const reset = () => {
     el.uploadBtn.disabled = false;
     setUploadLabel("Upload");
   };
 
   xhr.addEventListener("load", async () => {
-    finish();
+    reset();
     if (xhr.status === 401) {
       window.location.href = "/login";
       return;
     }
     if (xhr.status >= 200 && xhr.status < 300) {
+      let count = files.length;
+      try { count = JSON.parse(xhr.responseText).saved.length || count; } catch (_) {}
+      showUploadToast({
+        state: "done",
+        title: `Uploaded ${count} ${count === 1 ? "file" : "files"}`,
+        pct: 100,
+        detail: formatBytes(totalBytes),
+      });
+      hideUploadToast(2500);
       await navigate(state.path || "", { push: false });
     } else {
-      let detail = `Upload failed: ${xhr.status}`;
+      let detail = `Upload failed (${xhr.status})`;
       try { detail = JSON.parse(xhr.responseText).detail || detail; } catch (_) {}
-      alert(detail);
+      showUploadToast({ state: "error", title: "Upload failed", pct: 100, detail });
+      hideUploadToast(5000);
     }
   });
 
   xhr.addEventListener("error", () => {
-    finish();
-    alert("Upload failed: network error");
+    reset();
+    showUploadToast({
+      state: "error",
+      title: "Upload failed",
+      pct: 100,
+      detail: "Network error — check your connection and try again",
+    });
+    hideUploadToast(5000);
+  });
+
+  xhr.addEventListener("abort", () => {
+    reset();
+    hideUploadToast();
   });
 
   xhr.send(form);
@@ -1420,6 +1578,7 @@ document.addEventListener("keydown", (e) => {
     closeDownloadMenu();
     closeSidebar();
     closePromptModal();
+    closeDupModal("skip");
   }
 });
 
